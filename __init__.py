@@ -1,8 +1,7 @@
 import datetime
-import random
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify
 from wtforms import Form, StringField, RadioField, SelectField, TextAreaField, validators, ValidationError
-import shelve
+import sys
 
 from Forms import configurationForm, emailForm
 
@@ -19,6 +18,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 import time
 import threading
 from datetime import datetime, timedelta
+import numpy as np
 
 if torch.cuda.is_available():
     print('you are using gpu to process the video camera')
@@ -107,10 +107,9 @@ def load_model(model_path, num_classes):
     model.load_state_dict(checkpoint['model_state_dict'])
     return model
 
-
 def generate_frames():
-    cap = cv2.VideoCapture('rtsp://admin:Citi123!@192.168.1.64:554/Streaming/Channels/101')
-    #cap =cv2.VideoCapture('./testing.mp4')
+    #cap = cv2.VideoCapture('rtsp://admin:Citi123!@192.168.1.64:554/Streaming/Channels/101')
+    cap =cv2.VideoCapture('./testing.mp4')
     #cap =cv2.VideoCapture(0)
 
     cap.set(cv2.CAP_PROP_FPS, 30)
@@ -129,6 +128,7 @@ def generate_frames():
 
     # define the dictionary to store the number of pellets
     # Assuming 1 class for 'Pellet'
+    global object_count
     object_count = {1: 0}
 
 
@@ -236,7 +236,8 @@ def generate_frames():
 
         # store the pellets number to the object count which is permanently
         for label, count in temp_object_count.items():
-            object_count[label] = count
+            if label == 1:  # Assuming label 1 represents 'Pellets'
+                object_count[label] = count
 
         # Check feeding timer and switch to stop feeding if required
         if feeding_timer is not None and feeding:
@@ -359,70 +360,10 @@ def generate_frames():
     cap.release()
 
 
-
-
-
-
-
-
-
 app = Flask(__name__)
 
 from flask import Flask, flash, render_template, request, redirect, session, url_for
 import shelve, re
-
-
-@app.route('/',methods=['GET', 'POST'])
-def home():
-
-    edit_form = configurationForm(request.form)
-    db = shelve.open('settings.db', 'r')
-    Time_Record_dict = db['Time_Record']
-    db.close()
-    id_array = []
-    for key in Time_Record_dict:
-        product = Time_Record_dict.get(key)
-        if key == "Time_Record_Info":
-            id_array.append(product)
-    return render_template('home.html', count=len(id_array), id_array=id_array, edit =0, form=edit_form)
-
-from datetime import datetime, timedelta
-import random
-
-def process_camera_feed():
-    try:
-        # Placeholder for consumption and murkiness data
-        consumption_data = {'x': [], 'y': [], 'type': 'scatter', 'mode': 'lines+markers', 'name': 'Rate of Consumption'}
-        murkiness_data = {'x': [], 'y': [], 'type': 'scatter', 'mode': 'lines+markers', 'name': 'Murkiness of Water'}
-
-        # Generate data for the last 30 days
-        for i in range(30):
-            # Generate random consumption value (number of pellets)
-            consumption = random.randint(0, 100)
-            consumption_data['x'].append(datetime.now() - timedelta(days=(30 - i)))
-            consumption_data['y'].append(consumption)
-
-            # Generate random murkiness value (0 to 1)
-            murkiness = random.uniform(0, 1)
-            murkiness_data['x'].append(datetime.now() - timedelta(days=(30 - i)))
-            murkiness_data['y'].append(murkiness)
-
-        return consumption_data, murkiness_data
-    except Exception as e:
-        print(f"Error in process_camera_feed: {e}")
-        return None, None
-
-@app.route('/dashboard')
-def dashboard():
-    try:
-        # Process camera feed to get initial data for consumption and murkiness
-        consumption_data, murkiness_data = process_camera_feed()
-        if consumption_data is None or murkiness_data is None:
-            return "Error: Failed to retrieve data. Please try again later."
-        return render_template('dashboard.html', consumption_data=consumption_data, murkiness_data=murkiness_data)
-    except Exception as e:
-        print(f"Error in dashboard route: {e}")
-        return "Error: Something went wrong. Please try again later."
 
 @app.route('/healthz')
 def health_check():
@@ -432,20 +373,38 @@ def health_check():
     # Return an appropriate response indicating the health status of your application
     return jsonify({'status': 'healthy'})
 
-@app.route('/update_charts')
-def update_charts():
-    try:
-        # Process camera feed to get updated data
-        consumption_data, murkiness_data = process_camera_feed()
-        if consumption_data is None or murkiness_data is None:
-            return jsonify({"error": "Failed to retrieve data. Please try again later."}), 500
-        return jsonify({
-            'consumptionData': consumption_data,
-            'murkinessData': murkiness_data
-        })
-    except Exception as e:
-        print(f"Error in update_charts route: {e}")
-        return jsonify({"error": "Something went wrong. Please try again later."}), 500
+@app.route('/', methods=['GET', 'POST'])
+def dashboard():
+    edit_form = configurationForm(request.form)
+    db = shelve.open('settings.db', 'r')
+    Time_Record_dict = db['Time_Record']
+    db.close()
+    id_array = []
+    for key in Time_Record_dict:
+        product = Time_Record_dict.get(key)
+        if key == "Time_Record_Info":
+            id_array.append(product)
+    return render_template('dashboard.html', count=len(id_array), id_array=id_array, edit=0, form=edit_form)
+
+@app.route('/pellet_counts')
+def pellet_counts():
+    global object_count
+
+    # Simulate timestamps (current time for each label)
+    timestamps = [time.strftime('%H:%M:%S') for _ in object_count]
+
+    # Extract counts from object_count
+    counts = list(object_count.values())
+
+    # Prepare data for Chart.js
+    data = {
+        'labels': timestamps,
+        'data': counts
+    }
+
+    return jsonify(data)
+
+
 
 import re
 
@@ -472,7 +431,7 @@ def update_setting():
 
                 db['Time_Record'] = Time_Record_dict
                 db.close()
-                return redirect(url_for('home'))
+                return redirect(url_for('dashboard'))
             elif not(6 <= first_hour <= 12):
                 setting.first_timer.errors.append('First timer should be between 06:00 and 12:00 (morning to afternoon).')
                 return render_template('settings.html', form=setting)
@@ -516,7 +475,7 @@ def update_email_settings():
 
         db['Email_Data'] =Email_dict
         db.close()
-        return redirect(url_for('home'))
+        return redirect(url_for('dashboard'))
     else:
         Email_dict = {}
         db = shelve.open('settings.db', 'r')
@@ -594,12 +553,15 @@ def line_chart():
 #
 #
 #
+from flask import Flask, Response
 
-# Route to stream video frames
 @app.route('/video_feed')
 def video_feed():
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
+    try:
+        return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        print(f"Error: {e}")
+        return "Error generating video feed"
 
 
 def sending_email():
@@ -808,5 +770,5 @@ if __name__ == '__main__':
 
 
 
-    app.run(debug=False)
+    app.run(debug=True)
 

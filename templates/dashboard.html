@@ -2,36 +2,153 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h1>Dashboard</h1>
-    <!-- Placeholder divs for the charts -->
-    <div id="consumptionChart"></div>
-    <div id="murkinessChart"></div>
+<h1 style="text-align: center; margin-top: 20px; font-size: 32px; font-weight: bold;">Dashboard</h1>
+<hr style="border: none; border-top: 2px solid #ddd; margin-bottom: 20px;">
+
+<div class="centered">
+    <div class="block" style="display:inline-block; padding:50px; width:100%; height:100%; ">
+        <!-- Left-hand side: Video Feed -->
+        <div style="float:left; width:79%; height:60vh; margin-left:-150px">
+            <img src="{{ url_for('video_feed') }}" style="width:100%; height:100%; object-fit:contain;">
+        </div>
+
+        <!-- Right-hand side: Settings -->
+        <div style="float:right; width:34%; height:50vh; border:1px solid black; border-radius:20px; margin-right:-100px; margin-top:40px;">
+            <h2 style="text-align: center; padding: 20px; font-weight:bold;">Settings</h2>
+            <hr style="border: 1px solid grey; width:80%; margin: auto; margin-top:-15px;">
+
+            <br>
+            <div style="margin-left:30px; text-align: left;">
+                <!-- Settings displayed dynamically -->
+                {% for id in id_array %}
+                <span style="font-size: 1.12em;"><b>First feeding time:</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{{ id.get_first_timer() }}</span><br><br>
+                <span style="font-size: 1.12em;"><b>Second feeding time:</b> &nbsp;&nbsp;{{ id.get_second_timer() }}</span><br><br>
+                <span style="font-size: 1.12em;"><b>Confidence (1-100%):</b> &nbsp;&nbsp;{{ id.get_confidence() }}</span><br><br>
+                <span style="font-size: 1.12em;">Stop feeding when pellets exceed <b>{{ id.get_pellets() }}</b> and time <b>{{ id.get_seconds() }}</b> seconds</span><br><br>
+                {% endfor %}
+                <!-- Update Settings button -->
+                <div style="text-align: center; margin-top:25px; margin-left:-25px;"><a href="/update" class="update-btn">Update Settings</a></div>
+            </div>
+        </div>
+    </div>
+    <!-- Clearfix for float elements -->
+    <div style="clear:both;"></div>
+
+    <!-- Consumption Chart -->
+    <div style="margin-top: 50px; text-align: center;">
+        <canvas id="consumptionChart" width="800" height="400"></canvas>
+    </div>
 </div>
 
-<!-- Include Plotly.js library -->
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
-    // Function to update charts with live data
-    function updateCharts() {
-        // Make AJAX request to fetch live data from backend
-        fetch('/update_charts')
-        .then(response => response.json())
-        .then(data => {
-            // Update consumption chart
-            Plotly.newPlot('consumptionChart', [data.consumptionData]);
+document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('consumptionChart').getContext('2d');
+    let myChart;
 
-            // Update murkiness chart
-            Plotly.newPlot('murkinessChart', [data.murkinessData]);
-        })
-        .catch(error => console.error('Error updating charts:', error));
+    function updateChart() {
+        fetch('/pellet_counts')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Received data:', data);
+
+                if (Array.isArray(data.labels) && Array.isArray(data.data)) {
+                    if (myChart) {
+                        // Append new data points to the existing chart dataset
+                        data.labels.forEach((label, index) => {
+                            myChart.data.labels.push(label);
+                            myChart.data.datasets[0].data.push(data.data[index]);
+                        });
+                        myChart.update();
+                    } else {
+                        // Create new chart initially
+                        myChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: data.labels,
+                                datasets: [{
+                                    label: 'Number of Pellets',
+                                    data: data.data,
+                                    fill: false,
+                                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    borderWidth: 1,
+                                    pointRadius: 5,
+                                    pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                                    pointBorderColor: 'rgba(75, 192, 192, 1)',
+                                    pointHoverRadius: 8,
+                                    pointHoverBackgroundColor: 'rgba(75, 192, 192, 1)',
+                                    pointHoverBorderColor: 'rgba(220, 220, 220, 1)',
+                                    tension: 0.1,
+                                    borderCapStyle: 'round'
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                    x: {
+                                        display: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Time'
+                                        }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Number of Pellets'
+                                        }
+                                    }
+                                },
+                                plugins: {
+                                    tooltip: {
+                                        mode: 'index',
+                                        intersect: false,
+                                    },
+                                    legend: {
+                                        display: true,
+                                        position: 'top',
+                                    },
+                                    title: {
+                                        display: true,
+                                        text: 'Rate Of Consumption',
+                                        font: {
+                                            size: 20,
+                                            weight: 'bold'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    console.error('Invalid data format received:', data);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching data:', error);
+            });
     }
 
-    // Call updateCharts function initially to populate the charts
-    updateCharts();
+    // Initial call to updateChart function
+    updateChart();
 
-    // Call updateCharts function periodically (e.g., every 5 seconds)
-    setInterval(updateCharts, 5000); // Adjust the interval as needed
+    // Update chart every 2 seconds
+    setInterval(updateChart, 2000);
+});
+
 </script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+    }
+
+    .centered {
+        width: 80%;
+        margin: 0 auto;
+        text-align: center;
+    }
+</style>
 {% endblock %}
