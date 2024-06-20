@@ -424,6 +424,14 @@ def dashboard():
         print(f"Error in dashboard route: {e}")
         return "Error: Something went wrong. Please try again later."
 
+@app.route('/healthz')
+def health_check():
+    # Perform any health check logic here
+    # For example, you can check the status of your database connection,
+    # availability of external services, or any other dependencies
+    # Return an appropriate response indicating the health status of your application
+    return jsonify({'status': 'healthy'})
+
 @app.route('/update_charts')
 def update_charts():
     try:
