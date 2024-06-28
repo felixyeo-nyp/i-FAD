@@ -390,6 +390,9 @@ def dashboard():
 def pellet_counts():
     global object_count
 
+    if not object_count:  # Check if object_count is defined and not empty
+        return jsonify({"error": "object_count is not ready"}), 503
+
     # Simulate timestamps (current time for each label)
     timestamps = [time.strftime('%H:%M:%S') for _ in object_count]
 
@@ -403,6 +406,7 @@ def pellet_counts():
     }
 
     return jsonify(data)
+
 
 
 
@@ -770,5 +774,5 @@ if __name__ == '__main__':
 
 
 
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)
 
