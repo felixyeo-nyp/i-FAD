@@ -1,9 +1,14 @@
 import datetime
+
+import app as app
 from flask import Flask, render_template, request, redirect, url_for, flash, Response, jsonify
 from wtforms import Form, StringField, RadioField, SelectField, TextAreaField, validators, ValidationError
 import sys
 
 from Forms import configurationForm, emailForm
+
+app = Flask(__name__)
+app.config['SERVER_NAME'] = 'iatfad.onrender.com'
 
 j = datetime.datetime.now()
 print(j)
@@ -360,7 +365,6 @@ def generate_frames():
     cap.release()
 
 
-app = Flask(__name__)
 
 from flask import Flask, flash, render_template, request, redirect, session, url_for
 import shelve, re
