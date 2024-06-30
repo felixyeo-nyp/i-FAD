@@ -558,6 +558,7 @@ from flask import Flask, Response
 
 @app.route('/video_feed')
 def video_feed():
+    print("Video feed requested")
     try:
         return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
     except Exception as e:
