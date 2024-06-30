@@ -9,6 +9,7 @@ import cv2
 import torch
 import torchvision
 from flask import Flask, Response, jsonify, render_template, request, redirect, url_for
+from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 from Forms import configurationForm, emailForm
@@ -94,11 +95,12 @@ def create_model(num_classes, pretrained=False, coco_model=False):
         model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     return model
 
-# Function to load a pre-trained model
+# Function to load the Faster R-CNN model
 def load_model(model_path, num_classes):
-    model = create_model(num_classes=num_classes, pretrained=False, coco_model=False)
-    checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model = fasterrcnn_resnet50_fpn(pretrained=False)
+    in_features = model.roi_heads.box_predictor.cls_score.in_features
+    model.roi_heads.box_predictor = torchvision.models.detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes)
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))['model_state_dict'])
     return model
 
 # Function to generate video frames for streaming
