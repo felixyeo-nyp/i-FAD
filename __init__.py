@@ -379,6 +379,14 @@ def dashboard():
             id_array.append(product)
     return render_template('dashboard.html', count=len(id_array), id_array=id_array, edit=0, form=edit_form)
 
+@app.route('/healthz')
+def health_check():
+    # Perform any health check logic here
+    # For example, you can check the status of your database connection,
+    # availability of external services, or any other dependencies
+    # Return an appropriate response indicating the health status of your application
+    return jsonify({'status': 'healthy'})
+
 @app.route('/pellet_counts')
 def pellet_counts():
     global object_count
