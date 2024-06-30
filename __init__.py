@@ -11,6 +11,8 @@ import torchvision
 from flask import Flask, Response, jsonify, render_template, request, redirect, url_for
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from flask_cors import CORS, cross_origin
+
 
 from Forms import configurationForm, emailForm
 from OOP import Line_Chart_Data
@@ -18,7 +20,7 @@ object_count = {1: 0}
 
 def create_app():
     app = Flask(__name__)
-
+    CORS(app)
     # Configuration, routes, extensions, etc.
     app.config['SERVER_NAME'] = None
 
@@ -162,6 +164,7 @@ def generate_frames():
 
 app = create_app()
 
+
 # Flask routes for dashboard, health check, pellet counts, settings, and email settings
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
@@ -245,8 +248,8 @@ def email_setting():
     return render_template('email.html', form=email)
 
 
-# Route for video streaming
 @app.route('/video_feed')
+@cross_origin()
 def video_feed():
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
