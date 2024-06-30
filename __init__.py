@@ -365,13 +365,6 @@ app = Flask(__name__)
 from flask import Flask, flash, render_template, request, redirect, session, url_for
 import shelve, re
 
-@app.route('/healthz')
-def health_check():
-    # Perform any health check logic here
-    # For example, you can check the status of your database connection,
-    # availability of external services, or any other dependencies
-    # Return an appropriate response indicating the health status of your application
-    return jsonify({'status': 'healthy'})
 
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
@@ -770,5 +763,5 @@ if __name__ == '__main__':
 
 
 
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
 
