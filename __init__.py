@@ -8,7 +8,7 @@ from datetime import timedelta, datetime
 import cv2
 import torch
 import torchvision
-from flask import Flask, Response, jsonify, render_template, request, redirect, url_for, send_from_directory
+from flask import Flask, Response, jsonify, render_template, request, redirect, url_for
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from flask_cors import CORS, cross_origin
@@ -17,6 +17,7 @@ from Forms import configurationForm, emailForm
 from OOP import Line_Chart_Data
 
 object_count = {1: 0}
+timestamps = []  # To store timestamps for chart
 
 def create_app():
     app = Flask(__name__)
@@ -30,11 +31,8 @@ def create_app():
     else:
         print('No GPU found, using CPU for video processing')
 
-    # Other configurations and route definitions can be added here
-
     return app
 
-# Define class for real-time video processing
 class FreshestFrame(threading.Thread):
     def __init__(self, capture, name='FreshestFrame'):
         self.capture = capture
@@ -82,14 +80,12 @@ class FreshestFrame(threading.Thread):
                     return (self.pellets_num, self.frame)
             return (self.pellets_num, self.frame)
 
-# Define labels and model paths
 class_labels = {
     1: 'Pellets',
     2: 'Fecal Matters'
 }
 model_path = './best_model.pth'
 
-# Function to create a Faster R-CNN model
 def create_model(num_classes, pretrained=False, coco_model=False):
     model = torchvision.models.detection.fasterrcnn_resnet50_fpn(pretrained=pretrained)
     if not coco_model:
@@ -97,7 +93,6 @@ def create_model(num_classes, pretrained=False, coco_model=False):
         model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
     return model
 
-# Function to load the Faster R-CNN model
 def load_model(model_path, num_classes):
     model = fasterrcnn_resnet50_fpn(pretrained=False)
     in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -105,13 +100,12 @@ def load_model(model_path, num_classes):
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))['model_state_dict'])
     return model
 
-# Function to generate video frames for streaming
 def generate_frames():
     cap = cv2.VideoCapture('./static/testing.mp4')
+    cap.set(cv2.CAP_PROP_FPS, 30)
     fresh = FreshestFrame(cap)
 
-    # Load the Faster R-CNN model
-    num_classes = 2  # Assuming 2 classes for 'Pellets' and background
+    num_classes = 2
     model = load_model(model_path, num_classes)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -134,7 +128,7 @@ def generate_frames():
             if label in class_labels and label == 1:
                 box = predictions[0]['boxes'][i].cpu().numpy().astype(int)
                 score = predictions[0]['scores'][i].item()
-                if label == 1 and score > 0.5:  # Adjust score threshold as needed
+                if label == 1 and score > 0.5:
                     cv2.rectangle(frame, (box[0], box[1]), (box[2], box[3]), (0, 255, 0), 2)
                     cv2.putText(frame, f'{class_labels[label]}: {score:.2f}', (box[0], box[1] - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -163,7 +157,6 @@ def generate_frames():
 
 app = create_app()
 
-# Flask routes for dashboard, health check, pellet counts, settings, and email settings
 @app.route('/', methods=['GET', 'POST'])
 def dashboard():
     edit_form = configurationForm(request.form)
@@ -184,8 +177,12 @@ def health_check():
 @app.route('/pellet_counts')
 def pellet_counts():
     global object_count
-    timestamps = [time.strftime('%H:%M:%S') for _ in object_count]
-    counts = list(object_count.values())
+    global timestamps  # Use global timestamps variable
+    current_time = datetime.now().strftime('%H:%M:%S')
+    timestamps.append(current_time)
+    if len(timestamps) > 60:  # Keep only the last 60 timestamps for a 1-minute window
+        timestamps.pop(0)
+    counts = list(object_count.values()) * len(timestamps)  # Repeat counts to match timestamps length
     data = {
         'labels': timestamps,
         'data': counts
